@@ -1,7 +1,12 @@
-//#include <DS18B20.h>
-//#include <math.h>
-// include DS18B20 0.1.6 library
-#include "DS18.h"
+// This #include statement was automatically added by the Particle IDE.
+#include "ds18wv.h"
+
+// This #include statement was automatically added by the Particle IDE.
+#include <OneWire.h>
+//#include "ds18wv.h" // TODO this is not resetting the CRC flag, need to fix
+
+// enable system thread
+//SYSTEM_THREAD(ENABLED);
 
 const int      MAXRETRY          = 4;
 const uint32_t msSAMPLE_INTERVAL = 2500;
@@ -17,6 +22,11 @@ enum DoorState { door_between, door_up, door_down };
 volatile DoorState DOOR1_STATE;
 volatile DoorState PREVIOUS_DOOR1_STATE; // set to something != above
 
+
+//uint8_t TEMP_SENSOR_ADDR[8] = {0x28,0x87,0x31,0x52,0x00,0x00,0x00,0xE7}; // adjust for whatever is on the bus ds18b20
+uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adjust for whatever is on the bus ds18s20
+
+
 // D0 = unused
 // D1 = unused
 // D2 = relay trigger door 1
@@ -29,9 +39,9 @@ volatile DoorState PREVIOUS_DOOR1_STATE; // set to something != above
 // for debugging?
 SerialLogHandler myLog(LOG_LEVEL_TRACE);
 
-DS18 sensor(TEMP_SENSOR);
+DS18WV sensor(TEMP_SENSOR);
 
-Timer getTempTimer(msSAMPLE_INTERVAL, getTemp); // getTemp every msSAMPLE_INTERVAL
+//Timer getTempTimer(msSAMPLE_INTERVAL, getTemp); // getTemp every msSAMPLE_INTERVAL
 Timer doorState(msDOOR_PUBLISH_INTERVAL, publishDoorState); // get door state every msDOOR_SAMPLE_INTERVAL
 Timer publishDataTimer(msMETRIC_PUBLISH, publishData); // publishData every msMETRIC_PUBLISH
 
@@ -41,17 +51,25 @@ double   celsius;
 double   fahrenheit;
 uint32_t msLastMetric;
 uint32_t msLastSample;
+byte mac[6];
+unsigned long last_temp_time = 0;
 
 void setup() {
-  Time.zone(-5);
+  Time.zone(-7);
   Particle.variable("temp", fahrenheit);
   Particle.variable("doorstate", door_stat_str);
   Particle.variable("door1down", DOOR1_DOWN_STATE);
   Particle.variable("door1up", DOOR1_UP_STATE);
-  getTempTimer.start();
+  //getTempTimer.start();
   publishDataTimer.start();
   doorState.start();
   Serial.begin(115200);
+  // output MAC to serial port
+  WiFi.macAddress(mac);
+  for (int i=0; i<6; i++) {
+    Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
+  }
+  
   pinMode(RELAY1, OUTPUT);
   pinMode(DOOR1_UP, INPUT); // has external pulldown
   pinMode(DOOR1_DOWN, INPUT); // has external pulldown
@@ -66,13 +84,30 @@ void setup() {
 }
 
 void loop() {
-    //getTemp();
-    Particle.process(); // seems to prevent loss of connection
+    char buff[64];
+    int len = 64;
+    unsigned long current_time_ms = millis();
+    
+    // double check we are connected to the cloud + wifi
+    // TODO do we need this anymore?
+    if (!WiFi.ready()) 
+        WiFi.connect();
+    if (!Particle.connected()) 
+        Particle.connect();
+    
+    //Particle.process(); // seems to prevent loss of connection
+    // remove delay for 2.5 seconds and switch to checking current time compared to last loop
+    if (current_time_ms-last_temp_time >= msSAMPLE_INTERVAL) {
+        getTemp();
+        // now reset last_run_time
+        last_temp_time = current_time_ms;
+    }
 }
 
 void getTemp() {
     // Read the next available 1-Wire temperature sensor
-    if (sensor.read()) {
+    if (sensor.read(TEMP_SENSOR_ADDR)) {
+    //if (sensor.read()) {
         // Do something cool with the temperature
         Serial.printf("Temperature %.2f C %.2f F ", sensor.celsius(), sensor.fahrenheit());
         //Particle.publish("temperature", String(sensor.celsius()), PRIVATE);
@@ -84,7 +119,8 @@ void getTemp() {
         // If sensor.read() didn't return true you can try again later
         // This next block helps debug what's wrong.
         // It's not needed for the sensor to work properly
-    } else {
+        Serial.println();
+    } /*else {
         // Once all sensors have been read you'll get searchDone() == true
         // Next time read() is called the first sensor is read again
         if (sensor.searchDone()) {
@@ -95,8 +131,8 @@ void getTemp() {
         } else {
             printDebugInfo();
         }
-    }
-    Serial.println();
+        Serial.println();
+    }*/
 }
 
 void printDebugInfo() {
@@ -104,6 +140,7 @@ void printDebugInfo() {
   // Just ignore the temperature measurement and try again
   if (sensor.crcError()) {
     Serial.print("CRC Error ");
+    Serial.print(sensor.crcError());
   }
 
   // Print the sensor type
@@ -132,6 +169,8 @@ void printDebugInfo() {
     " data=%02X%02X%02X%02X%02X%02X%02X%02X%02X",
     data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]
   );
+  Serial.print("CRC=");
+  Serial.print(OneWire::crc8(data, 8), HEX);
 }
 
 void door1_up() {
@@ -215,11 +254,3 @@ void publishData() {
     sprintf(szInfo, "%2.2f", fahrenheit);
     Particle.publish("dsTmp", szInfo, PRIVATE);
 }
-/*void publishData(){
-  if(!ds18b20.crcCheck()){      //make sure the value is correct
-    return;
-  }
-  sprintf(szInfo, "%2.2f", fahrenheit);
-  Particle.publish("dsTmp", szInfo, PRIVATE);
-  msLastMetric = millis();
-}*/
