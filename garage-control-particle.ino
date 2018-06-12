@@ -20,7 +20,7 @@ volatile bool DOOR1_UP_STATE = false;
 volatile bool DOOR1_DOWN_STATE = false;
 enum DoorState { door_between, door_up, door_down };
 volatile DoorState DOOR1_STATE;
-volatile DoorState PREVIOUS_DOOR1_STATE; // set to something != above
+volatile DoorState PREVIOUS_DOOR1_STATE = door_between; // set to something != above
 
 
 //uint8_t TEMP_SENSOR_ADDR[8] = {0x28,0x87,0x31,0x52,0x00,0x00,0x00,0xE7}; // adjust for whatever is on the bus ds18b20
@@ -81,6 +81,9 @@ void setup() {
   Serial.println("Setup complete.");
   sprintf(door_stat_str, "unknown");
   // check door status right away
+  Log.trace("check door state @ startup");
+  door1_up();
+  door1_down();
   check_door1_state(DOOR1_UP);
   check_door1_state(DOOR1_DOWN);
 }
