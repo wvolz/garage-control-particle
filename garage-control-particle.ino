@@ -95,10 +95,14 @@ void loop() {
     
     // double check we are connected to the cloud + wifi
     // TODO do we need this anymore?
-    if (!WiFi.ready()) 
+    if (!WiFi.ready()) {
+		Log.trace("reconnecting wifi in main program loop");
         WiFi.connect();
-    if (!Particle.connected()) 
+    }
+    if (!Particle.connected()) {
+		Log.trace("reconnecting to particle cloud in main program loop");
         Particle.connect();
+    }
     
     //Particle.process(); // seems to prevent loss of connection
     // remove delay for 2.5 seconds and switch to checking current time compared to last loop
@@ -238,6 +242,7 @@ int toggle_door_relay(String command) {
 
 void publishDoorState() {
     // check door state
+	//Log.trace("publishDoorState function called from timer");
     if (PREVIOUS_DOOR1_STATE != DOOR1_STATE)
     {
         //String door_stat_str;
@@ -266,6 +271,7 @@ void publishDoorState() {
 }
 
 void publishData() {
+	//Log.trace("publishData function called from timer");
     sprintf(szInfo, "%2.2f", fahrenheit);
     Particle.publish("dsTmp", szInfo, PRIVATE);
 }
