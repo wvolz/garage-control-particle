@@ -42,8 +42,8 @@ SerialLogHandler myLog(LOG_LEVEL_TRACE);
 DS18WV sensor(TEMP_SENSOR);
 
 //Timer getTempTimer(msSAMPLE_INTERVAL, getTemp); // getTemp every msSAMPLE_INTERVAL
-Timer doorState(msDOOR_PUBLISH_INTERVAL, publishDoorState); // get door state every msDOOR_SAMPLE_INTERVAL
-Timer publishDataTimer(msMETRIC_PUBLISH, publishData); // publishData every msMETRIC_PUBLISH
+//Timer doorState(msDOOR_PUBLISH_INTERVAL, publishDoorState); // get door state every msDOOR_SAMPLE_INTERVAL
+//Timer publishDataTimer(msMETRIC_PUBLISH, publishData); // publishData every msMETRIC_PUBLISH
 
 char door_stat_str[8];
 char     szInfo[64];
@@ -53,6 +53,8 @@ uint32_t msLastMetric;
 uint32_t msLastSample;
 byte mac[6];
 unsigned long last_temp_time = 0;
+unsigned long last_door_state_time = 0;
+unsigned long last_metric_publish_time = 0;
 
 void setup() {
   Time.zone(-7);
@@ -61,9 +63,9 @@ void setup() {
   Particle.variable("door1down", DOOR1_DOWN_STATE);
   Particle.variable("door1up", DOOR1_UP_STATE);
   //getTempTimer.start();
-  publishDataTimer.start();
-  doorState.start();
-  Serial.begin(115200);
+  //publishDataTimer.start();
+  //doorState.start();
+  Serial.begin(9600);
   // output MAC to serial port
   WiFi.macAddress(mac);
   for (int i=0; i<6; i++) {
@@ -102,6 +104,16 @@ void loop() {
         // now reset last_run_time
         last_temp_time = current_time_ms;
     }
+	
+	if (current_time_ms-last_door_state_time >= msDOOR_PUBLISH_INTERVAL) {
+		publishDoorState();
+		last_door_state_time = current_time_ms;
+	}
+	
+	if (current_time_ms-last_metric_publish_time >= msMETRIC_PUBLISH) {
+		publishData();
+		last_metric_publish_time = current_time_ms;
+	}
 }
 
 void getTemp() {
