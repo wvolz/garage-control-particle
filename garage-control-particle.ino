@@ -1,9 +1,12 @@
 // This #include statement was automatically added by the Particle IDE.
 #include "ds18wv.h"
 
-// This #include statement was automatically added by the Particle IDE.
+#include <MQTT.h>
 #include <OneWire.h>
-//#include "ds18wv.h" // TODO this is not resetting the CRC flag, need to fix
+#include "ds18wv.h" // TODO this is not resetting the CRC flag, need to fix
+
+// for MQTT
+void callback(char* topic, byte* payload, unsigned int length);
 
 // enable system thread
 //SYSTEM_THREAD(ENABLED);
@@ -39,16 +42,24 @@ uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adju
 // for debugging?
 SerialLogHandler myLog(LOG_LEVEL_TRACE);
 
-DS18WV sensor(TEMP_SENSOR);
+DS18WV sensor(TEMP_SENSOR, FALSE);
+/**
+ * if want to use IP address,
+ * byte server[] = { XXX,XXX,XXX,XXX };
+ * MQTT client(server, 1883, callback);
+ * want to use domain name,
+ * exp) iot.eclipse.org is Eclipse Open MQTT Broker: https://iot.eclipse.org/getting-started
+ * MQTT client("iot.eclipse.org", 1883, callback);
+ **/
+MQTT mqttclient("magicchef.volzfamily.net", 1883, callback);
 
-//Timer getTempTimer(msSAMPLE_INTERVAL, getTemp); // getTemp every msSAMPLE_INTERVAL
-//Timer doorState(msDOOR_PUBLISH_INTERVAL, publishDoorState); // get door state every msDOOR_SAMPLE_INTERVAL
-//Timer publishDataTimer(msMETRIC_PUBLISH, publishData); // publishData every msMETRIC_PUBLISH
+//OneWire sensor(TEMP_SENSOR);
 
 char door_stat_str[8];
 char     szInfo[64];
 double   celsius;
 double   fahrenheit;
+int     crcerror = 0;
 uint32_t msLastMetric;
 uint32_t msLastSample;
 byte mac[6];
@@ -56,12 +67,37 @@ unsigned long last_temp_time = 0;
 unsigned long last_door_state_time = 0;
 unsigned long last_metric_publish_time = 0;
 
+// mqtt recieve message
+void callback(char* topic, byte* payload, unsigned int length) {
+    char p[length + 1];
+    memcpy(p, payload, length);
+    p[length] = NULL;
+
+    // for now do nothing here
+    /*if (!strcmp(p, "RED"))
+        RGB.color(255, 0, 0);
+    else if (!strcmp(p, "GREEN"))
+        RGB.color(0, 255, 0);
+    else if (!strcmp(p, "BLUE"))
+        RGB.color(0, 0, 255);
+    else
+        RGB.color(255, 255, 255);
+    delay(1000);*/
+}
+
+char* mac_char() {
+    int MAX_MAC_STRING_LENGTH = 12;
+    char deviceMac[MAX_MAC_STRING_LENGTH + 1];
+    snprintf(deviceMac, MAX_MAC_STRING_LENGTH+1 , "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return deviceMac;
+}
+
 void setup() {
   Time.zone(-7);
-  Particle.variable("temp", fahrenheit);
+  Particle.variable("tempF", fahrenheit);
+  Particle.variable("tempC", celsius);
+  Particle.variable("tempCRCerr", crcerror);
   Particle.variable("doorstate", door_stat_str);
-  Particle.variable("door1down", DOOR1_DOWN_STATE);
-  Particle.variable("door1up", DOOR1_UP_STATE);
   //getTempTimer.start();
   //publishDataTimer.start();
   //doorState.start();
@@ -79,6 +115,15 @@ void setup() {
   attachInterrupt(DOOR1_DOWN, door1_down, CHANGE);
   Particle.function("door1move", toggle_door_relay);
   Serial.println("Setup complete.");
+  // connect to the server
+  mqttclient.connect("sparkclient");
+  
+  // mqtt publish/subscribe
+  if (mqttclient.isConnected()) {
+    mqttclient.publish("outTopic/message","hello world");
+    mqttclient.subscribe("inTopic/message");
+  }
+  
   sprintf(door_stat_str, "unknown");
   // check door status right away
   Log.trace("check door state @ startup");
@@ -86,6 +131,7 @@ void setup() {
   door1_down();
   check_door1_state(DOOR1_UP);
   check_door1_state(DOOR1_DOWN);
+  //sensor.setConversionTime(750);
 }
 
 void loop() {
@@ -102,6 +148,11 @@ void loop() {
     if (!Particle.connected()) {
 		Log.trace("reconnecting to particle cloud in main program loop");
         Particle.connect();
+    }
+    
+    // make sure mqtt maintains connection
+    if (mqttclient.isConnected()) {
+        mqttclient.loop();
     }
     
     //Particle.process(); // seems to prevent loss of connection
@@ -125,12 +176,13 @@ void loop() {
 
 void getTemp() {
     // Read the next available 1-Wire temperature sensor
-    if (sensor.read(TEMP_SENSOR_ADDR)) {
-    //if (sensor.read()) {
+    //if (sensor.read(TEMP_SENSOR_ADDR)) {
+    if (sensor.read()) {
         // Do something cool with the temperature
-        Serial.printf("Temperature %.2f C %.2f F ", sensor.celsius(), sensor.fahrenheit());
-        //Particle.publish("temperature", String(sensor.celsius()), PRIVATE);
         fahrenheit = sensor.fahrenheit();
+        celsius = sensor.celsius();
+        Serial.printf("Temperature %.2f C %.2f F ", celsius, fahrenheit);
+        //Particle.publish("temperature", String(sensor.celsius()), PRIVATE);
 
         // Additional info useful while debugging
         printDebugInfo();
@@ -139,11 +191,18 @@ void getTemp() {
         // This next block helps debug what's wrong.
         // It's not needed for the sensor to work properly
         Serial.println();
-    } /*else {
+    /*} else {
+        // CRC error?
+        if (sensor.crcError()) {
+            crcerror++;
+            sensor.wireReset();
+        }*/
+    } else {
         // Once all sensors have been read you'll get searchDone() == true
         // Next time read() is called the first sensor is read again
         if (sensor.searchDone()) {
             Serial.println("No more addresses.");
+            //Particle.publish("NoMoreAddr", PRIVATE);
             // Avoid excessive printing when no sensors are connected
             delay(250);
             // Something went wrong
@@ -151,7 +210,7 @@ void getTemp() {
             printDebugInfo();
         }
         Serial.println();
-    }*/
+    }
 }
 
 void printDebugInfo() {
@@ -172,10 +231,17 @@ void printDebugInfo() {
     default: type = "UNKNOWN"; break;
   }
   Serial.print(type);
+  //Particle.publish("DStype", type, PRIVATE);
 
   // Print the ROM (sensor type and unique ID)
   uint8_t addr[8];
   sensor.addr(addr);
+  /*String x;
+  x.format( " ROM=%02X%02X%02X%02X%02X%02X%02X%02X",
+    addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7]
+      );
+  //Particle.publish("DSaddr", x, PRIVATE);
+  Serial.print(x.c_str());*/
   Serial.printf(
     " ROM=%02X%02X%02X%02X%02X%02X%02X%02X",
     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7]
@@ -188,7 +254,7 @@ void printDebugInfo() {
     " data=%02X%02X%02X%02X%02X%02X%02X%02X%02X",
     data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8]
   );
-  Serial.print("CRC=");
+  Serial.print(" CRC=");
   Serial.print(OneWire::crc8(data, 8), HEX);
 }
 
@@ -274,4 +340,8 @@ void publishData() {
 	//Log.trace("publishData function called from timer");
     sprintf(szInfo, "%2.2f", fahrenheit);
     Particle.publish("dsTmp", szInfo, PRIVATE);
+     // mqtt publish/subscribe
+    if (mqttclient.isConnected()) {
+        mqttclient.publish("temp/message",szInfo);
+    }
 }
