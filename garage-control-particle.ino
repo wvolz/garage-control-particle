@@ -24,6 +24,7 @@ volatile bool DOOR1_DOWN_STATE = false;
 enum DoorState { door_between, door_up, door_down };
 volatile DoorState DOOR1_STATE;
 volatile DoorState PREVIOUS_DOOR1_STATE = door_between; // set to something != above
+String mqtt_id = "photon_";
 
 
 //uint8_t TEMP_SENSOR_ADDR[8] = {0x28,0x87,0x31,0x52,0x00,0x00,0x00,0xE7}; // adjust for whatever is on the bus ds18b20
@@ -66,6 +67,7 @@ byte mac[6];
 unsigned long last_temp_time = 0;
 unsigned long last_door_state_time = 0;
 unsigned long last_metric_publish_time = 0;
+unsigned long last_mqtt_reconnect_time = 0;
 
 // mqtt recieve message
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -85,12 +87,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
     delay(1000);*/
 }
 
-char* mac_char() {
+/*char* mac_char() {
     int MAX_MAC_STRING_LENGTH = 12;
-    char deviceMac[MAX_MAC_STRING_LENGTH + 1];
+    char deviceMac[MAX_MAC_STRING_LENGTH];
     snprintf(deviceMac, MAX_MAC_STRING_LENGTH+1 , "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return deviceMac;
-}
+}*/
 
 void setup() {
   Time.zone(-7);
@@ -103,10 +105,18 @@ void setup() {
   //doorState.start();
   Serial.begin(9600);
   // output MAC to serial port
+  // get mac from photon
   WiFi.macAddress(mac);
+  // convert to a string
+  String mac_addr_string;
+  char tmp[1];
   for (int i=0; i<6; i++) {
-    Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
+    //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
+    sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
+    mac_addr_string += tmp;
   }
+  Serial.print("MAC=");
+  Serial.println(mac_addr_string.c_str());
   
   pinMode(RELAY1, OUTPUT);
   pinMode(DOOR1_UP, INPUT); // has external pulldown
@@ -116,7 +126,7 @@ void setup() {
   Particle.function("door1move", toggle_door_relay);
   Serial.println("Setup complete.");
   // connect to the server
-  mqttclient.connect("sparkclient");
+  mqttclient.connect(String(mqtt_id + mac_addr_string));
   
   // mqtt publish/subscribe
   if (mqttclient.isConnected()) {
@@ -153,6 +163,20 @@ void loop() {
     // make sure mqtt maintains connection
     if (mqttclient.isConnected()) {
         mqttclient.loop();
+    } else {
+        // disconnected, try to connect if it's been 5 seconds since our last
+        // connection attempt
+        if (current_time_ms - last_mqtt_reconnect_time > 5000) {
+            last_mqtt_reconnect_time = current_time_ms;
+            String mac_addr_string;
+            char tmp[1];
+            for (int i=0; i<6; i++) {
+              //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
+              sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
+              mac_addr_string += tmp;
+            }
+            mqttclient.connect(String(mqtt_id + mac_addr_string));
+        }
     }
     
     //Particle.process(); // seems to prevent loss of connection
@@ -332,6 +356,7 @@ void publishDoorState() {
         PREVIOUS_DOOR1_STATE = DOOR1_STATE;
         Serial.print("Door ");
         Serial.println(door_stat_str);
+        mqttclient.publish("door/state", door_stat_str);
         //Particle.publish("door1state", door_stat_str, PRIVATE);
     }
 }
@@ -342,6 +367,6 @@ void publishData() {
     Particle.publish("dsTmp", szInfo, PRIVATE);
      // mqtt publish/subscribe
     if (mqttclient.isConnected()) {
-        mqttclient.publish("temp/message",szInfo);
+        mqttclient.publish("temp/message", szInfo);
     }
 }
