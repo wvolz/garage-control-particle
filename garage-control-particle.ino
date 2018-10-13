@@ -130,8 +130,8 @@ void setup() {
   
   // mqtt publish/subscribe
   if (mqttclient.isConnected()) {
-    mqttclient.publish("outTopic/message","hello world");
-    mqttclient.subscribe("inTopic/message");
+    mqttclient.publish("garage/message","hello world");
+    mqttclient.subscribe("garage/door/set");
   }
   
   sprintf(door_stat_str, "unknown");
@@ -356,7 +356,7 @@ void publishDoorState() {
         PREVIOUS_DOOR1_STATE = DOOR1_STATE;
         Serial.print("Door ");
         Serial.println(door_stat_str);
-        mqttclient.publish("door/state", door_stat_str);
+        mqttclient.publish("garage/door/state", door_stat_str);
         //Particle.publish("door1state", door_stat_str, PRIVATE);
     }
 }
@@ -367,6 +367,6 @@ void publishData() {
     Particle.publish("dsTmp", szInfo, PRIVATE);
      // mqtt publish/subscribe
     if (mqttclient.isConnected()) {
-        mqttclient.publish("temp/message", szInfo);
+        mqttclient.publish("garage/sensor/temperature", szInfo);
     }
 }
