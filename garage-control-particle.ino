@@ -31,7 +31,8 @@ enum DoorState { door_between, door_up, door_down };
 volatile DoorState DOOR1_STATE;
 volatile DoorState PREVIOUS_DOOR1_STATE = door_between; // set to something != above
 String mqtt_id = "photon_";
-
+volatile bool leftParkingOccupied = false;
+volatile bool rightParkingOccupied = false;
 
 //uint8_t TEMP_SENSOR_ADDR[8] = {0x28,0x87,0x31,0x52,0x00,0x00,0x00,0xE7}; // adjust for whatever is on the bus ds18b20
 uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adjust for whatever is on the bus ds18s20
@@ -193,6 +194,31 @@ void loop() {
         String::format("%.2f", leftDistance).toCharArray(leftDistanceStr, 8);
         float rightDistance = RightRangefinder.distInch();
         String::format("%.2f", rightDistance).toCharArray(rightDistanceStr, 8);
+        mqttclient.publish("garage/sensor/distance", String::format("{\"right\": %.2f, \"left\": %.2f}", rightDistance, leftDistance));
+        
+        // check to see if distance reading indicates car in garage spot 1 or 2
+        if (leftDistance <= 67 && digitalRead(LEFT_LED) == LOW)
+        {
+            digitalWrite(LEFT_LED, HIGH);
+            leftParkingOccupied = true;
+        }
+        if (leftDistance > 67 && digitalRead(LEFT_LED) == HIGH)
+        {
+            digitalWrite(LEFT_LED, LOW);
+            leftParkingOccupied = false;
+        }
+        
+        if (rightDistance <= 67 && digitalRead(RIGHT_LED) == LOW)
+        {
+            digitalWrite(RIGHT_LED, HIGH);
+            rightParkingOccupied = true;
+        }
+        if (rightDistance > 67 && digitalRead(RIGHT_LED) == HIGH)
+        {
+            digitalWrite(RIGHT_LED, LOW);
+            rightParkingOccupied = false;
+        }
+        
         lastDistance = millis() + 1000UL;
     }
     
@@ -388,6 +414,7 @@ int toggle_door_relay(String command) {
     // TODO handle different door #s
     // command not used
     digitalWrite(RELAY1, HIGH);
+    // TODO get rid of this delay and turn into some kind of callback after a timer expires?
     delay(500);
     digitalWrite(RELAY1, LOW);
     return 1;
@@ -419,8 +446,9 @@ void publishDoorState() {
         PREVIOUS_DOOR1_STATE = DOOR1_STATE;
         Serial.print("Door ");
         Serial.println(door_stat_str);
-        mqttclient.publish("garage/door/state", door_stat_str);
         //Particle.publish("door1state", door_stat_str, PRIVATE);
+        // change has occured so push out one time update to mqtt of door state
+        mqttclient.publish("garage/door/state", door_stat_str);
     }
 }
 
@@ -431,5 +459,9 @@ void publishData() {
      // mqtt publish/subscribe
     if (mqttclient.isConnected()) {
         mqttclient.publish("garage/sensor/temperature", szInfo);
+        // also push out garage door state
+        mqttclient.publish("garage/door/state", door_stat_str);
+        // push spot occupied metric
+        mqttclient.publish("garage/sensor/parking", String::format("{\"left\": %d, \"right\": %d}", leftParkingOccupied, rightParkingOccupied));
     }
 }
