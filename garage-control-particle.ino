@@ -1,8 +1,15 @@
+#include <HC-SR04.h>
 #include <MQTT.h>
 #include <OneWire.h>
 #include "ds18wv.h" // TODO this is not resetting the CRC flag, need to fix
 
 #define RECONNECT 15*1000
+#define LEFT_LED D0
+#define RIGHT_LED D1
+#define LEFT_TRIGGER A0
+#define LEFT_ECHO A1
+#define RIGHT_TRIGGER A2
+#define RIGHT_ECHO A3
 
 // for MQTT
 void callback(char* topic, byte* payload, unsigned int length);
@@ -30,14 +37,18 @@ String mqtt_id = "photon_";
 uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adjust for whatever is on the bus ds18s20
 
 
-// D0 = unused
-// D1 = unused
+// D0 = left red led
+// D1 = right red led
 // D2 = relay trigger door 1
 // D3 = reserved for future relay trigger
 // D4 = Door 1 up
 // D5 = Door 1 down
 // D6 = DS18b20
 // D7 = reserved for Door 2 up
+// A0 = Trigger left
+// A1 = echo light
+// A2 = Trigger right
+// A3 = echo right
 
 // for debugging?
 SerialLogHandler myLog(LOG_LEVEL_TRACE);
@@ -53,12 +64,17 @@ DS18WV sensor(TEMP_SENSOR, FALSE);
  **/
 MQTT mqttclient("magicchef.volzfamily.net", 1883, callback);
 
-//OneWire sensor(TEMP_SENSOR);
+HC_SR04 LeftRangefinder = HC_SR04(LEFT_TRIGGER, LEFT_ECHO);
+HC_SR04 RightRangefinder = HC_SR04(RIGHT_TRIGGER, RIGHT_ECHO);
 
 char door_stat_str[8];
 char     szInfo[64];
 double   celsius;
 double   fahrenheit;
+//float   rightDistance = 0.0;
+//float   leftDistance = 0.0;
+char    leftDistanceStr[8];
+char    rightDistanceStr[8];
 int     crcerror = 0;
 uint32_t msLastMetric;
 uint32_t msLastSample;
@@ -99,6 +115,8 @@ void setup() {
   //getTempTimer.start();
   //publishDataTimer.start();
   //doorState.start();
+  LeftRangefinder.init();
+  RightRangefinder.init();
   Serial.begin(9600);
   // output MAC to serial port
   // get mac from photon
@@ -114,6 +132,8 @@ void setup() {
   Serial.print("MAC=");
   Serial.println(mac_addr_string.c_str());
   
+  pinMode(LEFT_LED, OUTPUT);
+  pinMode(RIGHT_LED, OUTPUT);
   pinMode(RELAY1, OUTPUT);
   pinMode(DOOR1_UP, INPUT); // has external pulldown
   pinMode(DOOR1_DOWN, INPUT); // has external pulldown
@@ -135,6 +155,11 @@ void setup() {
   Particle.variable("tempC", celsius);
   Particle.variable("tempCRCerr", crcerror);
   Particle.variable("doorstate", door_stat_str);
+  //String lout = String::format("Inch is %.2f",leftDistance);
+  //Particle.variable("lDistance", String::format("Inch is %.2f",leftDistance).c_str());
+  Particle.variable("lDistance", leftDistanceStr);
+  Particle.variable("rDistance", rightDistanceStr);
+  //Particle.variable("rDistance", String::format("=%.2f", rightDistance));
   Particle.function("door1move", toggle_door_relay);
   
   // connect to the mqtt server
@@ -148,9 +173,29 @@ void setup() {
   Serial.println("Setup complete.");
 }
 
+//unsigned long lastPass = 0;
+//int state = 0;
+unsigned long lastDistance = 0;
+
 void loop() {
     char buff[64];
     int len = 64;
+    
+    //if (millis() > lastPass) {
+    //  digitalWrite(RIGHT_LED, (state) ? HIGH : LOW);
+    //  state = !state;
+    //  lastPass = millis() + 5000UL;
+    //}
+    // 1 sec delay between readings
+    if (millis() > lastDistance) {
+        
+        float leftDistance = LeftRangefinder.distInch();
+        String::format("%.2f", leftDistance).toCharArray(leftDistanceStr, 8);
+        float rightDistance = RightRangefinder.distInch();
+        String::format("%.2f", rightDistance).toCharArray(rightDistanceStr, 8);
+        lastDistance = millis() + 1000UL;
+    }
+    
     
     // double check we are connected to the cloud + wifi
     // TODO do we need this anymore?
