@@ -1,15 +1,14 @@
-// This #include statement was automatically added by the Particle IDE.
-#include "ds18wv.h"
-
 #include <MQTT.h>
 #include <OneWire.h>
 #include "ds18wv.h" // TODO this is not resetting the CRC flag, need to fix
+
+#define RECONNECT 15*1000
 
 // for MQTT
 void callback(char* topic, byte* payload, unsigned int length);
 
 // enable system thread
-//SYSTEM_THREAD(ENABLED);
+SYSTEM_THREAD(ENABLED);
 
 const int      MAXRETRY          = 4;
 const uint32_t msSAMPLE_INTERVAL = 2500;
@@ -68,6 +67,7 @@ unsigned long last_temp_time = 0;
 unsigned long last_door_state_time = 0;
 unsigned long last_metric_publish_time = 0;
 unsigned long last_mqtt_reconnect_time = 0;
+unsigned long lastCloudConnect;
 
 // mqtt recieve message
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -96,10 +96,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void setup() {
   Time.zone(-7);
-  Particle.variable("tempF", fahrenheit);
-  Particle.variable("tempC", celsius);
-  Particle.variable("tempCRCerr", crcerror);
-  Particle.variable("doorstate", door_stat_str);
   //getTempTimer.start();
   //publishDataTimer.start();
   //doorState.start();
@@ -123,16 +119,6 @@ void setup() {
   pinMode(DOOR1_DOWN, INPUT); // has external pulldown
   attachInterrupt(DOOR1_UP, door1_up, CHANGE);
   attachInterrupt(DOOR1_DOWN, door1_down, CHANGE);
-  Particle.function("door1move", toggle_door_relay);
-  Serial.println("Setup complete.");
-  // connect to the server
-  mqttclient.connect(String(mqtt_id + mac_addr_string));
-  
-  // mqtt publish/subscribe
-  if (mqttclient.isConnected()) {
-    mqttclient.publish("garage/message","hello world");
-    mqttclient.subscribe("garage/door/set");
-  }
   
   sprintf(door_stat_str, "unknown");
   // check door status right away
@@ -142,12 +128,29 @@ void setup() {
   check_door1_state(DOOR1_UP);
   check_door1_state(DOOR1_DOWN);
   //sensor.setConversionTime(750);
+  
+  // don't publish data until connected to cloud
+  waitUntil(Particle.connected);
+  Particle.variable("tempF", fahrenheit);
+  Particle.variable("tempC", celsius);
+  Particle.variable("tempCRCerr", crcerror);
+  Particle.variable("doorstate", door_stat_str);
+  Particle.function("door1move", toggle_door_relay);
+  
+  // connect to the mqtt server
+  mqttclient.connect(String(mqtt_id + mac_addr_string));
+  
+  // mqtt publish/subscribe
+  if (mqttclient.isConnected()) {
+    mqttclient.publish("garage/message","hello world");
+    mqttclient.subscribe("garage/door/set");
+  }
+  Serial.println("Setup complete.");
 }
 
 void loop() {
     char buff[64];
     int len = 64;
-    unsigned long current_time_ms = millis();
     
     // double check we are connected to the cloud + wifi
     // TODO do we need this anymore?
@@ -164,37 +167,52 @@ void loop() {
     if (mqttclient.isConnected()) {
         mqttclient.loop();
     } else {
-        // disconnected, try to connect if it's been 5 seconds since our last
-        // connection attempt
-        if (current_time_ms - last_mqtt_reconnect_time > 5000) {
-            last_mqtt_reconnect_time = current_time_ms;
-            String mac_addr_string;
-            char tmp[1];
-            for (int i=0; i<6; i++) {
-              //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
-              sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
-              mac_addr_string += tmp;
+        // disconnected from mqtt broker
+        // check wifi first
+        /*if (!WiFi.ready()) {
+            if (millis() - lastCloudConnect > RECONNECT) {   // try not to stress the network
+                lastCloudConnect = millis();
+                WiFi.off();                 // Restart the WiFi part
+                delay(1000);
+                WiFi.on();
+                delay(500);
+                WiFi.connect();
             }
-            mqttclient.connect(String(mqtt_id + mac_addr_string));
+        }*/
+        
+        // try to connect if it's been 5 seconds since our last
+        // connection attempt
+        if (WiFi.ready()) {
+            if (millis() - last_mqtt_reconnect_time > 5000) {
+                last_mqtt_reconnect_time = millis();
+                String mac_addr_string;
+                char tmp[1];
+                for (int i=0; i<6; i++) {
+                  //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
+                  sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
+                  mac_addr_string += tmp;
+                }
+                mqttclient.connect(String(mqtt_id + mac_addr_string));
+            }
         }
     }
     
     //Particle.process(); // seems to prevent loss of connection
     // remove delay for 2.5 seconds and switch to checking current time compared to last loop
-    if (current_time_ms-last_temp_time >= msSAMPLE_INTERVAL) {
+    if (millis()-last_temp_time >= msSAMPLE_INTERVAL) {
         getTemp();
         // now reset last_run_time
-        last_temp_time = current_time_ms;
+        last_temp_time = millis();
     }
 	
-	if (current_time_ms-last_door_state_time >= msDOOR_PUBLISH_INTERVAL) {
+	if (millis()-last_door_state_time >= msDOOR_PUBLISH_INTERVAL) {
 		publishDoorState();
-		last_door_state_time = current_time_ms;
+		last_door_state_time = millis();
 	}
 	
-	if (current_time_ms-last_metric_publish_time >= msMETRIC_PUBLISH) {
+	if (millis()-last_metric_publish_time >= msMETRIC_PUBLISH) {
 		publishData();
-		last_metric_publish_time = current_time_ms;
+		last_metric_publish_time = millis();
 	}
 }
 
