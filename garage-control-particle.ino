@@ -85,6 +85,7 @@ unsigned long last_door_state_time = 0;
 unsigned long last_metric_publish_time = 0;
 unsigned long last_mqtt_reconnect_time = 0;
 unsigned long lastCloudConnect;
+unsigned long lastDS18NotFoundTime = 0;
 
 // mqtt recieve message
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -314,12 +315,14 @@ void getTemp() {
         // Once all sensors have been read you'll get searchDone() == true
         // Next time read() is called the first sensor is read again
         if (sensor.searchDone()) {
-            Serial.println("No more addresses.");
-            //Particle.publish("NoMoreAddr", PRIVATE);
-            // Avoid excessive printing when no sensors are connected
-            delay(250);
-            // Something went wrong
+            // only print to serial if longer than 250ms to
+            // avoid excess printing with no sensors connected
+            if (millis()-lastDS18NotFoundTime > 250) {
+                Serial.println("No more addresses.");
+                lastDS18NotFoundTime = millis();
+            }
         } else {
+            // Something went wrong
             printDebugInfo();
         }
         Serial.println();
