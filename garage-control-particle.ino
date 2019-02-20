@@ -18,9 +18,9 @@ void callback(char* topic, byte* payload, unsigned int length);
 SYSTEM_THREAD(ENABLED);
 
 const int      MAXRETRY          = 4;
-const uint32_t msSAMPLE_INTERVAL = 2500;
-const uint32_t msMETRIC_PUBLISH  = 30000;
-const uint32_t msDOOR_PUBLISH_INTERVAL = 300;
+const uint32_t msSAMPLE_INTERVAL = 2500; //2.5 seconds
+const uint32_t msMETRIC_PUBLISH  = 30000; //30 seconds
+const uint32_t msDOOR_PUBLISH_INTERVAL = 300; //300ms
 const int RELAY1 = D2;
 const int DOOR1_UP = D4;
 const int DOOR1_DOWN = D5;
