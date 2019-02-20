@@ -413,14 +413,23 @@ void check_door1_state(int pin) {
     Serial.println(DOOR1_STATE);
 }
 
+// setup timer for door relay, turn off after 500ms, only run once
+Timer doorRelayOffTimer(500, door_relay_off, true);
+
 int toggle_door_relay(String command) {
     // TODO handle different door #s
     // command not used
     digitalWrite(RELAY1, HIGH);
-    // TODO get rid of this delay and turn into some kind of callback after a timer expires?
-    delay(500);
-    digitalWrite(RELAY1, LOW);
+    // start off timer
+    doorRelayOffTimer.start();
+
     return 1;
+}
+
+// Write whatever is appropriate for "off" on the door relay
+void door_relay_off() {
+    digitalWrite(RELAY1, LOW);
+    return;
 }
 
 void publishDoorState() {
