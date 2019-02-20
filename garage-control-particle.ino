@@ -1,6 +1,6 @@
-#include <HC-SR04.h>
-#include <MQTT.h>
-#include <OneWire.h>
+#include <HC-SR04.h> // 1.0.1
+#include <MQTT.h> // 0.4.29
+#include <OneWire.h> // 2.0.3
 #include "ds18wv.h" // TODO this is not resetting the CRC flag, need to fix
 
 #define RECONNECT 15*1000
