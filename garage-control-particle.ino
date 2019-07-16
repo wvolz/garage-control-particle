@@ -47,7 +47,7 @@ uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adju
 // D6 = DS18b20
 // D7 = reserved for Door 2 up
 // A0 = Trigger left
-// A1 = echo light
+// A1 = echo left
 // A2 = Trigger right
 // A3 = echo right
 
@@ -192,6 +192,7 @@ void loop() {
     if (millis() > lastDistance) {
         
         float leftDistance = LeftRangefinder.distInch();
+        //float leftDistance = 0;
         String::format("%.2f", leftDistance).toCharArray(leftDistanceStr, 8);
         float rightDistance = RightRangefinder.distInch();
         String::format("%.2f", rightDistance).toCharArray(rightDistanceStr, 8);
@@ -423,6 +424,9 @@ int toggle_door_relay(String command) {
     // start off timer
     doorRelayOffTimer.start();
 
+    // TODO get rid of this delay and turn into some kind of callback after a timer expires?
+    //delay(500);
+    //digitalWrite(RELAY1, LOW);
     return 1;
 }
 
