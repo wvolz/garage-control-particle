@@ -10,6 +10,9 @@
 #define LEFT_ECHO A1
 #define RIGHT_TRIGGER A2
 #define RIGHT_ECHO A3
+#define EEPROM_ADDRESS 0
+#define EEPROM_SIGNATURE 0x64
+#define EEPROM_VERSION 0x01
 
 // for MQTT
 void callback(char* topic, byte* payload, unsigned int length);
@@ -33,6 +36,14 @@ volatile DoorState PREVIOUS_DOOR1_STATE = door_between; // set to something != a
 String mqtt_id = "photon_";
 volatile bool leftParkingOccupied = false;
 volatile bool rightParkingOccupied = false;
+struct eepromData {
+	unsigned char signature;
+	unsigned char version;
+	char deviceName[60];
+	bool mqttEnabled;
+	bool rangingEnabled;
+};
+eepromData savedData;
 
 //uint8_t TEMP_SENSOR_ADDR[8] = {0x28,0x87,0x31,0x52,0x00,0x00,0x00,0xE7}; // adjust for whatever is on the bus ds18b20
 uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adjust for whatever is on the bus ds18s20
@@ -164,6 +175,23 @@ void setup() {
   //Particle.variable("rDistance", String::format("=%.2f", rightDistance));
   Particle.function("door1move", toggle_door_relay);
   
+  // eeprom check
+  if (!eeprom_signature_ok())
+  {
+	  // it's not setup yet
+	  initialize_eeprom();
+	  Log.trace("eeprom signature failed, init eeprom to default values");
+	  
+  }
+  if (!eeprom_signature_ok())
+  {
+	  // signature match fail
+	  Log.trace("eeprom signature mismatch");
+  }
+  
+  read_eeprom_values();
+  Log.trace("Read eeprom data sig=%x, ver=%x", (const char*)savedData.signature, (const char*)savedData.version);
+
   // connect to the mqtt server
   mqttclient.connect(String(mqtt_id + mac_addr_string));
   
@@ -480,4 +508,55 @@ void publishData() {
         // push spot occupied metric
         mqttclient.publish("garage/sensor/parking", String::format("{\"left\": %d, \"right\": %d}", leftParkingOccupied, rightParkingOccupied));
     }
+}
+
+int initialize_eeprom() {
+	// wipe eeprom contents and set to default values
+	eepromData data;
+	// default values below
+	data.signature = EEPROM_SIGNATURE;
+	data.version = EEPROM_VERSION;
+	data.mqttEnabled = FALSE;
+	data.rangingEnabled = FALSE;
+	EEPROM.put(EEPROM_ADDRESS, data);
+	return 1;
+}
+
+int eeprom_version_match() {
+	// check to see if current eeprom version matches to saved values
+	eepromData data;
+	EEPROM.get(EEPROM_ADDRESS, data);
+	if (data.signature == EEPROM_VERSION)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+int eeprom_signature_ok() {
+	// validate the signature is ok in the eeprom data struct
+	eepromData data;
+	EEPROM.get(EEPROM_ADDRESS, data);
+	if (data.signature == EEPROM_SIGNATURE)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+void read_eeprom_values() {
+	// read data from eeprom into global
+	EEPROM.get(EEPROM_ADDRESS, savedData);
+	return;
+}
+
+void write_eeprom_values() {
+	// save data from global to eeprom
+	EEPROM.put(EEPROM_ADDRESS, savedData);
 }
