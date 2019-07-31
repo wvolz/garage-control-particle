@@ -190,16 +190,24 @@ void setup() {
   }
   
   read_eeprom_values();
-  Log.trace("Read eeprom data sig=%x, ver=%x", (const char*)savedData.signature, (const char*)savedData.version);
+  Log.trace("Read eeprom data sig=%x, ver=%x, name=%s, mqttEn=%i, rangingEn=%i",
+                (const char*)savedData.signature,
+                (const char*)savedData.version,
+                (const char*)savedData.deviceName,
+                (const int*)savedData.mqttEnabled,
+                (const int*)savedData.rangingEnabled);
 
   // connect to the mqtt server
-  mqttclient.connect(String(mqtt_id + mac_addr_string));
+  if (savedData.mqttEnabled) {
+	mqttclient.connect(String(mqtt_id + mac_addr_string));
   
-  // mqtt publish/subscribe
-  if (mqttclient.isConnected()) {
-    mqttclient.publish("garage/message","hello world");
-    mqttclient.subscribe("garage/door/set");
+    // mqtt publish/subscribe
+    if (mqttclient.isConnected()) {
+      mqttclient.publish("garage/message","hello world");
+      mqttclient.subscribe("garage/door/set");
+    }
   }
+  
   Serial.println("Setup complete.");
 }
 
@@ -217,15 +225,17 @@ void loop() {
     //  lastPass = millis() + 5000UL;
     //}
     // 1 sec delay between readings
-    if (millis() > lastDistance) {
+    if ((millis() > lastDistance) && savedData.rangingEnabled) {
         
         float leftDistance = LeftRangefinder.distInch();
         //float leftDistance = 0;
         String::format("%.2f", leftDistance).toCharArray(leftDistanceStr, 8);
         float rightDistance = RightRangefinder.distInch();
         String::format("%.2f", rightDistance).toCharArray(rightDistanceStr, 8);
-        mqttclient.publish("garage/sensor/distance", String::format("{\"right\": %.2f, \"left\": %.2f}", rightDistance, leftDistance));
         
+        if (savedData.mqttEnabled) {
+            mqttclient.publish("garage/sensor/distance", String::format("{\"right\": %.2f, \"left\": %.2f}", rightDistance, leftDistance));
+        }
         // check to see if distance reading indicates car in garage spot 1 or 2
         if (leftDistance <= 67 && digitalRead(LEFT_LED) == LOW)
         {
@@ -264,36 +274,40 @@ void loop() {
         Particle.connect();
     }
     
-    // make sure mqtt maintains connection
-    if (mqttclient.isConnected()) {
-        mqttclient.loop();
-    } else {
-        // disconnected from mqtt broker
-        // check wifi first
-        /*if (!WiFi.ready()) {
-            if (millis() - lastCloudConnect > RECONNECT) {   // try not to stress the network
-                lastCloudConnect = millis();
-                WiFi.off();                 // Restart the WiFi part
-                delay(1000);
-                WiFi.on();
-                delay(500);
-                WiFi.connect();
-            }
-        }*/
-        
-        // try to connect if it's been 5 seconds since our last
-        // connection attempt
-        if (WiFi.ready()) {
-            if (millis() - last_mqtt_reconnect_time > 5000) {
-                last_mqtt_reconnect_time = millis();
-                String mac_addr_string;
-                char tmp[1];
-                for (int i=0; i<6; i++) {
-                  //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
-                  sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
-                  mac_addr_string += tmp;
+    // make sure mqtt maintains connection if mqtt is enabled
+    if (savedData.mqttEnabled) {
+        if (mqttclient.isConnected())
+        {
+            mqttclient.loop();
+        } else {
+            // disconnected from mqtt broker
+            // check wifi first
+            /*if (!WiFi.ready()) {
+                if (millis() - lastCloudConnect > RECONNECT) {   // try not to stress the network
+                    lastCloudConnect = millis();
+                    WiFi.off();                 // Restart the WiFi part
+                    delay(1000);
+                    WiFi.on();
+                    delay(500);
+                    WiFi.connect();
                 }
-                mqttclient.connect(String(mqtt_id + mac_addr_string));
+            }*/
+            
+            // try to connect if it's been 5 seconds since our last
+            // connection attempt
+            if (WiFi.ready()) {
+                if (millis() - last_mqtt_reconnect_time > 5000) {
+                    last_mqtt_reconnect_time = millis();
+                String mac_addr_string;
+                    char tmp[1];
+                    for (int i=0; i<6; i++) {
+                      //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
+                      sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
+                      mac_addr_string += tmp;
+                    }
+                    mqttclient.connect(String(mqtt_id + mac_addr_string));
+    				Log.trace("reconnecting to MQTT broker");
+                }
             }
         }
     }
@@ -451,7 +465,7 @@ int toggle_door_relay(String command) {
     digitalWrite(RELAY1, HIGH);
     // start off timer
     doorRelayOffTimer.start();
-
+    
     // TODO get rid of this delay and turn into some kind of callback after a timer expires?
     //delay(500);
     //digitalWrite(RELAY1, LOW);
@@ -492,7 +506,9 @@ void publishDoorState() {
         Serial.println(door_stat_str);
         //Particle.publish("door1state", door_stat_str, PRIVATE);
         // change has occured so push out one time update to mqtt of door state
-        mqttclient.publish("garage/door/state", door_stat_str);
+        if (savedData.mqttEnabled) {
+            mqttclient.publish("garage/door/state", door_stat_str);
+        }
     }
 }
 
@@ -501,8 +517,8 @@ void publishData() {
     sprintf(szInfo, "%2.2f", fahrenheit);
     Particle.publish("dsTmp", szInfo, PRIVATE);
      // mqtt publish/subscribe
-    if (mqttclient.isConnected()) {
-        mqttclient.publish("garage/sensor/temperature", szInfo);
+    if (mqttclient.isConnected() && savedData.mqttEnabled) {
+        //mqttclient.publish("garage/sensor/temperature", szInfo);
         // also push out garage door state
         mqttclient.publish("garage/door/state", door_stat_str);
         // push spot occupied metric
@@ -516,6 +532,7 @@ int initialize_eeprom() {
 	// default values below
 	data.signature = EEPROM_SIGNATURE;
 	data.version = EEPROM_VERSION;
+	strncpy(data.deviceName, "UNKNOWN", 8);
 	data.mqttEnabled = FALSE;
 	data.rangingEnabled = FALSE;
 	EEPROM.put(EEPROM_ADDRESS, data);
