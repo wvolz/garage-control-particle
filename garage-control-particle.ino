@@ -20,6 +20,9 @@ void callback(char* topic, byte* payload, unsigned int length);
 // enable system thread
 SYSTEM_THREAD(ENABLED);
 
+// enable use of external antenna in 'auto' mode (switch between both)
+STARTUP(WiFi.selectAntenna(ANT_AUTO));
+
 const int      MAXRETRY          = 4;
 const uint32_t msSAMPLE_INTERVAL = 2500; //2.5 seconds
 const uint32_t msMETRIC_PUBLISH  = 30000; //30 seconds
