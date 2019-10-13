@@ -211,12 +211,13 @@ void setup() {
   }
   
   read_eeprom_values();
-  Log.trace("Read eeprom data sig=%x, ver=%x, name=%s, mqttEn=%i, rangingEn=%i",
+  Log.trace("Read eeprom data sig=%x, ver=%x, name=%s, mqttEn=%i, rangingEn=%i, mqttSer=%s",
                 (const char*)savedData.signature,
                 (const char*)savedData.version,
                 (const char*)savedData.deviceName,
                 (const int*)savedData.mqttEnabled,
-                (const int*)savedData.rangingEnabled);
+                (const int*)savedData.rangingEnabled,
+                (const char*)savedData.mqttBroker);
 
   // connect to the mqtt server
   if (savedData.mqttEnabled) {
