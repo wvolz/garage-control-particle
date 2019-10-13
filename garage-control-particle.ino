@@ -11,9 +11,10 @@
 #define RIGHT_TRIGGER A2
 #define RIGHT_ECHO A3
 #define EEPROM_ADDRESS 0
-#define EEPROM_SIGNATURE 0x64
-#define EEPROM_VERSION 0x01
+#define EEPROM_SIGNATURE 0x63
+#define EEPROM_VERSION 0x02
 #define DEVICE_NAME_LENGTH 60
+#define MQTT_BROKER_LENGTH 60
 
 // for MQTT
 void callback(char* topic, byte* payload, unsigned int length);
@@ -46,6 +47,7 @@ struct eepromData {
 	char deviceName[60];
 	bool mqttEnabled;
 	bool rangingEnabled;
+	char mqttBroker[60];
 };
 eepromData savedData;
 
@@ -181,10 +183,12 @@ void setup() {
   Particle.variable("mqttEnabled", savedData.mqttEnabled);
   Particle.variable("rangingEnabled", savedData.rangingEnabled);
   Particle.variable("deviceName", savedData.deviceName);
+  Particle.variable("mqttBroker", savedData.mqttBroker);
   Particle.function("toggleMqtt", toggle_mqtt_support);
   Particle.function("toggleRanging", toggle_ranging_support);
   Particle.function("saveEEPROM", cloud_write_eeprom_values);
   Particle.function("updateDeviceName", cloud_update_device_name);
+  Particle.function("updateMqttBroker", cloud_update_mqtt_broker);
   
   // eeprom check
   if (!eeprom_signature_ok())
@@ -551,6 +555,7 @@ int initialize_eeprom() {
 	strncpy(data.deviceName, "UNKNOWN", 8);
 	data.mqttEnabled = FALSE;
 	data.rangingEnabled = FALSE;
+	strncpy(data.mqttBroker, "127.0.0.1", 10); // added in 63, 02
 	EEPROM.put(EEPROM_ADDRESS, data);
 	return 1;
 }
@@ -641,6 +646,23 @@ int cloud_update_device_name(String arg)
     
     // looks like we are ok, copy data over
     arg.toCharArray(savedData.deviceName, DEVICE_NAME_LENGTH);
+    
+    return 1;
+}
+int cloud_update_mqtt_broker(String arg)
+{
+    int arg_length = arg.length();
+    if (arg_length != 0 && arg_length > 58)
+    {
+        Log.trace("invalid argument to cloud update mqtt broker");
+        return -1;
+    }
+    
+    // looks like we are ok, copy data over
+    arg.toCharArray(savedData.mqttBroker, MQTT_BROKER_LENGTH);
+    
+    // switch broker here
+    mqttclient.setBroker(savedData.mqttBroker, 1883);
     
     return 1;
 }
