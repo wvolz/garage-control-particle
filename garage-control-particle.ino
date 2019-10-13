@@ -13,6 +13,7 @@
 #define EEPROM_ADDRESS 0
 #define EEPROM_SIGNATURE 0x64
 #define EEPROM_VERSION 0x01
+#define DEVICE_NAME_LENGTH 60
 
 // for MQTT
 void callback(char* topic, byte* payload, unsigned int length);
@@ -184,6 +185,7 @@ void setup() {
   Particle.function("toggleRanging", toggle_ranging_support);
 
 
+  Particle.function("updateDeviceName", cloud_update_device_name);
   
   // eeprom check
   if (!eeprom_signature_ok())
@@ -611,6 +613,22 @@ int toggle_ranging_support(String arg)
     {
         savedData.rangingEnabled = 1;
     }
+    
+    return 1;
+}
+int cloud_update_device_name(String arg)
+{
+    // validate length of new device name
+    // note need to account for null at end of string
+    int arg_length = arg.length();
+    if (arg_length != 0 && arg_length > 58)
+    {
+        Log.trace("invalid argument to cloud update device name");
+        return -1;
+    }
+    
+    // looks like we are ok, copy data over
+    arg.toCharArray(savedData.deviceName, DEVICE_NAME_LENGTH);
     
     return 1;
 }
