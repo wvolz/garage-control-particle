@@ -189,15 +189,20 @@ void setup() {
   // eeprom check
   if (!eeprom_signature_ok())
   {
-	  // it's not setup yet
+	  // signature check failed, reset to default values
+	  // NOTE this should be adapted to confirm if failure is due to 
+	  //      no data or actual mismatch
 	  initialize_eeprom();
-	  Log.trace("eeprom signature failed, init eeprom to default values");
+	  Log.trace("eeprom signature mismatch, init eeprom to default values");
 	  
   }
-  if (!eeprom_signature_ok())
+  if (!eeprom_version_match())
   {
-	  // signature match fail
-	  Log.trace("eeprom signature mismatch");
+	  // version mismatch
+	  // TODO migrate data between versions
+
+	  Log.trace("eeprom version mismatch");
+	  initialize_eeprom();
   }
   
   read_eeprom_values();
@@ -554,7 +559,7 @@ int eeprom_version_match() {
 	// check to see if current eeprom version matches to saved values
 	eepromData data;
 	EEPROM.get(EEPROM_ADDRESS, data);
-	if (data.signature == EEPROM_VERSION)
+	if (data.version == EEPROM_VERSION)
 	{
 		return 1;
 	}
