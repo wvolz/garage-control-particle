@@ -177,6 +177,13 @@ void setup() {
   Particle.variable("rDistance", rightDistanceStr);
   //Particle.variable("rDistance", String::format("=%.2f", rightDistance));
   Particle.function("door1move", toggle_door_relay);
+  Particle.variable("mqttEnabled", savedData.mqttEnabled);
+  Particle.variable("rangingEnabled", savedData.rangingEnabled);
+  Particle.variable("deviceName", savedData.deviceName);
+  Particle.function("toggleMqtt", toggle_mqtt_support);
+  Particle.function("toggleRanging", toggle_ranging_support);
+
+
   
   // eeprom check
   if (!eeprom_signature_ok())
@@ -579,4 +586,31 @@ void read_eeprom_values() {
 void write_eeprom_values() {
 	// save data from global to eeprom
 	EEPROM.put(EEPROM_ADDRESS, savedData);
+}
+int toggle_mqtt_support(String arg)
+{
+    if (savedData.mqttEnabled)
+    {
+        savedData.mqttEnabled = 0;
+    }
+    else
+    {
+        savedData.mqttEnabled = 1;
+    }
+    
+    return 1;
+}
+
+int toggle_ranging_support(String arg)
+{
+    if (savedData.rangingEnabled)
+    {
+        savedData.rangingEnabled = 0;
+    }
+    else
+    {
+        savedData.rangingEnabled = 1;
+    }
+    
+    return 1;
 }
