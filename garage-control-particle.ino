@@ -547,7 +547,11 @@ void publishData() {
         // also push out garage door state
         mqttclient.publish("garage/door/state", door_stat_str);
         // push spot occupied metric
+        // NOTE we are already doing this once every second in the main loop
+        /*if (savedData.rangingEnabled)
+        {
         mqttclient.publish("garage/sensor/parking", String::format("{\"left\": %d, \"right\": %d}", leftParkingOccupied, rightParkingOccupied));
+        }*/
     }
 }
 
