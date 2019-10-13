@@ -543,7 +543,7 @@ void publishData() {
     Particle.publish("dsTmp", szInfo, PRIVATE);
      // mqtt publish/subscribe
     if (mqttclient.isConnected() && savedData.mqttEnabled) {
-        //mqttclient.publish("garage/sensor/temperature", szInfo);
+        mqttclient.publish("garage/sensor/temperature", szInfo);
         // also push out garage door state
         mqttclient.publish("garage/door/state", door_stat_str);
         // push spot occupied metric
@@ -603,6 +603,7 @@ void write_eeprom_values() {
 	// save data from global to eeprom
 	EEPROM.put(EEPROM_ADDRESS, savedData);
 }
+
 int toggle_mqtt_support(String arg)
 {
     if (savedData.mqttEnabled)
@@ -654,6 +655,7 @@ int cloud_update_device_name(String arg)
     
     return 1;
 }
+
 int cloud_update_mqtt_broker(String arg)
 {
     int arg_length = arg.length();
