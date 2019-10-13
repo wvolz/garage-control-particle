@@ -80,7 +80,8 @@ DS18WV sensor(TEMP_SENSOR, FALSE);
  * exp) iot.eclipse.org is Eclipse Open MQTT Broker: https://iot.eclipse.org/getting-started
  * MQTT client("iot.eclipse.org", 1883, callback);
  **/
-MQTT mqttclient("magicchef.volzfamily.net", 1883, callback);
+// default to localhost, select in main setup based on eeprom data
+MQTT mqttclient("localhost", 1883, callback);
 
 HC_SR04 LeftRangefinder = HC_SR04(LEFT_TRIGGER, LEFT_ECHO);
 HC_SR04 RightRangefinder = HC_SR04(RIGHT_TRIGGER, RIGHT_ECHO);
@@ -139,9 +140,9 @@ void setup() {
   Serial.begin(9600);
   // output MAC to serial port
   // get mac from photon
-  WiFi.macAddress(mac);
+  ///WiFi.macAddress(mac);
   // convert to a string
-  String mac_addr_string;
+  /*String mac_addr_string;
   char tmp[1];
   for (int i=0; i<6; i++) {
     //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
@@ -149,7 +150,7 @@ void setup() {
     mac_addr_string += tmp;
   }
   Serial.print("MAC=");
-  Serial.println(mac_addr_string.c_str());
+  Serial.println(mac_addr_string.c_str());*/
   
   pinMode(LEFT_LED, OUTPUT);
   pinMode(RIGHT_LED, OUTPUT);
@@ -219,7 +220,9 @@ void setup() {
 
   // connect to the mqtt server
   if (savedData.mqttEnabled) {
-	mqttclient.connect(String(mqtt_id + mac_addr_string));
+    mqttclient.setBroker(savedData.mqttBroker, 1883);
+    //mqttclient.connect(String(mqtt_id + mac_addr_string));
+    mqttclient.connect(String(mqtt_id + savedData.deviceName));
   
     // mqtt publish/subscribe
     if (mqttclient.isConnected()) {
@@ -318,14 +321,15 @@ void loop() {
             if (WiFi.ready()) {
                 if (millis() - last_mqtt_reconnect_time > 5000) {
                     last_mqtt_reconnect_time = millis();
-                String mac_addr_string;
+                    /*String mac_addr_string;
                     char tmp[1];
                     for (int i=0; i<6; i++) {
                       //Serial.printf("%02x%s", mac[i], i != 5 ? ":" : "");
                       sprintf(tmp, "%02x%s", mac[i], i != 5 ? ":" : "");
                       mac_addr_string += tmp;
                     }
-                    mqttclient.connect(String(mqtt_id + mac_addr_string));
+                    mqttclient.connect(String(mqtt_id + mac_addr_string));*/
+                    mqttclient.connect(String(mqtt_id + savedData.deviceName));
     				Log.trace("reconnecting to MQTT broker");
                 }
             }
