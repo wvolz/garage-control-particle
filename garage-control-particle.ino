@@ -183,8 +183,7 @@ void setup() {
   Particle.variable("deviceName", savedData.deviceName);
   Particle.function("toggleMqtt", toggle_mqtt_support);
   Particle.function("toggleRanging", toggle_ranging_support);
-
-
+  Particle.function("saveEEPROM", cloud_write_eeprom_values);
   Particle.function("updateDeviceName", cloud_update_device_name);
   
   // eeprom check
@@ -616,6 +615,14 @@ int toggle_ranging_support(String arg)
     
     return 1;
 }
+
+int cloud_write_eeprom_values(String arg)
+{
+    write_eeprom_values();
+    
+    return 1;
+}
+
 int cloud_update_device_name(String arg)
 {
     // validate length of new device name
