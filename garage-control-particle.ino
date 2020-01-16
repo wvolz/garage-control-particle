@@ -111,6 +111,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
     memcpy(p, payload, length);
     p[length] = NULL;
 
+	if (!strncmp(p, "OPEN", 4))
+	{
+		if (DOOR1_STATE == door_down)
+			toggle_door_relay("");
+	}
+	else if (!strncmp(p, "CLOSE", 5))
+	{
+		if (DOOR1_STATE == door_up)
+			toggle_door_relay("");
+	}
     // for now do nothing here
     /*if (!strcmp(p, "RED"))
         RGB.color(255, 0, 0);
