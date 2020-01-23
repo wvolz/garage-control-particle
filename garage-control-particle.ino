@@ -118,7 +118,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 	}
 	else if (!strncmp(p, "CLOSE", 5))
 	{
-		if (DOOR1_STATE == door_up)
+		if (DOOR1_STATE != door_down)
 			toggle_door_relay("");
 	}
     // for now do nothing here
