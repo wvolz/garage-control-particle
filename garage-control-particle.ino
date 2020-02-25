@@ -341,7 +341,7 @@ void loop() {
                     }
                     mqttclient.connect(String(mqtt_id + mac_addr_string));*/
                     mqttclient.connect(String(mqtt_id + savedData.deviceName));
-    				Log.trace("reconnecting to MQTT broker");
+                    Log.trace("reconnecting to MQTT broker");
                     // make sure we are subscribed to set topic on broker after reconnect
                     mqttclient.subscribe("garage/door/set");
                     mqttclient.publish("garage/log","Reconnected to MQTT broker and re-subscribed to set topic", TRUE);
@@ -544,8 +544,9 @@ void publishDoorState() {
         Serial.println(door_stat_str);
         //Particle.publish("door1state", door_stat_str, PRIVATE);
         // change has occured so push out one time update to mqtt of door state
+        // tell MQTT to retain last value
         if (savedData.mqttEnabled) {
-            mqttclient.publish("garage/door/state", door_stat_str);
+            mqttclient.publish("garage/door/state", door_stat_str, TRUE);
         }
     }
 }
@@ -557,8 +558,8 @@ void publishData() {
      // mqtt publish/subscribe
     if (mqttclient.isConnected() && savedData.mqttEnabled) {
         mqttclient.publish("garage/sensor/temperature", szInfo);
-        // also push out garage door state
-        mqttclient.publish("garage/door/state", door_stat_str);
+        // also push out garage door state with retain flag
+        mqttclient.publish("garage/door/state", door_stat_str, TRUE);
         // push spot occupied metric
         // NOTE we are already doing this once every second in the main loop
         /*if (savedData.rangingEnabled)
