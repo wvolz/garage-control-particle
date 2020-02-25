@@ -237,7 +237,7 @@ void setup() {
   
     // mqtt publish/subscribe
     if (mqttclient.isConnected()) {
-      mqttclient.publish("garage/message","hello world");
+      mqttclient.publish("garage/log", String(savedData.deviceName) + "connected to MQTT broker", TRUE);
       mqttclient.subscribe("garage/door/set");
     }
   }
@@ -342,6 +342,9 @@ void loop() {
                     mqttclient.connect(String(mqtt_id + mac_addr_string));*/
                     mqttclient.connect(String(mqtt_id + savedData.deviceName));
     				Log.trace("reconnecting to MQTT broker");
+                    // make sure we are subscribed to set topic on broker after reconnect
+                    mqttclient.subscribe("garage/door/set");
+                    mqttclient.publish("garage/log","Reconnected to MQTT broker and re-subscribed to set topic", TRUE);
                 }
             }
         }
