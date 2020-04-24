@@ -111,16 +111,26 @@ void callback(char* topic, byte* payload, unsigned int length) {
     memcpy(p, payload, length);
     p[length] = NULL;
 
-	if (!strncmp(p, "OPEN", 4))
-	{
-		if (DOOR1_STATE == door_down)
-			toggle_door_relay("");
-	}
-	else if (!strncmp(p, "CLOSE", 5))
-	{
-		if (DOOR1_STATE != door_down)
-			toggle_door_relay("");
-	}
+    if (!strncmp(topic, "garage/door/set", 15))
+    {
+        if (!strncmp(p, "OPEN", 4))
+    	{
+    		if (DOOR1_STATE == door_down)
+    			toggle_door_relay("");
+    	}
+    	else if (!strncmp(p, "CLOSE", 5))
+    	{
+    		if (DOOR1_STATE != door_down)
+    			toggle_door_relay("");
+    	}
+    }
+    else if (!strncmp(topic, "garage/listen/set", 15))
+    {
+        // tell listen to timeout after 300 seconds (5 min) for this operation
+        WiFi.setListenTimeout(300);
+        WiFi.listen();
+        // TOOD reset listen timeout to 0?
+    }
     // for now do nothing here
     /*if (!strcmp(p, "RED"))
         RGB.color(255, 0, 0);
@@ -234,14 +244,15 @@ void setup() {
     mqttclient.setBroker(savedData.mqttBroker, 1883);
     //mqttclient.connect(String(mqtt_id + mac_addr_string));
     mqttclient.connect(String(mqtt_id + savedData.deviceName));
-  
+
     // mqtt publish/subscribe
     if (mqttclient.isConnected()) {
-      mqttclient.publish("garage/log", String(savedData.deviceName) + "connected to MQTT broker", TRUE);
+      mqttclient.publish("garage/log", String(savedData.deviceName) + " connected to MQTT broker", TRUE);
       mqttclient.subscribe("garage/door/set");
+      mqttclient.subscribe("garage/listen/set");
     }
   }
-  
+
   Serial.println("Setup complete.");
 }
 
@@ -503,8 +514,8 @@ int toggle_door_relay(String command) {
     digitalWrite(RELAY1, HIGH);
     // start off timer
     doorRelayOffTimer.start();
-    
-    // TODO get rid of this delay and turn into some kind of callback after a timer expires?
+
+    // TODO get rid of this delay and turn into some kind ofcallback after a timer expires?
     //delay(500);
     //digitalWrite(RELAY1, LOW);
     return 1;
