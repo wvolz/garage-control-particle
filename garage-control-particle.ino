@@ -42,18 +42,14 @@ String mqtt_id = "photon_";
 volatile bool leftParkingOccupied = false;
 volatile bool rightParkingOccupied = false;
 struct eepromData {
-	unsigned char signature;
-	unsigned char version;
-	char deviceName[60];
-	bool mqttEnabled;
-	bool rangingEnabled;
-	char mqttBroker[60];
+    unsigned char signature;
+    unsigned char version;
+    char deviceName[60];
+    bool mqttEnabled;
+    bool rangingEnabled;
+    char mqttBroker[60];
 };
 eepromData savedData;
-
-//uint8_t TEMP_SENSOR_ADDR[8] = {0x28,0x87,0x31,0x52,0x00,0x00,0x00,0xE7}; // adjust for whatever is on the bus ds18b20
-//uint8_t TEMP_SENSOR_ADDR[8] = {0x10,0xF9,0xCB,0x21,0x00,0x08,0x00,0xC4}; // adjust for whatever is on the bus ds18s20
-
 
 // D0 = left red led
 // D1 = right red led
@@ -131,16 +127,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
         WiFi.listen();
         // TOOD reset listen timeout to 0?
     }
-    // for now do nothing here
-    /*if (!strcmp(p, "RED"))
-        RGB.color(255, 0, 0);
-    else if (!strcmp(p, "GREEN"))
-        RGB.color(0, 255, 0);
-    else if (!strcmp(p, "BLUE"))
-        RGB.color(0, 0, 255);
-    else
-        RGB.color(255, 255, 255);
-    delay(1000);*/
 }
 
 /*char* mac_char() {
@@ -171,7 +157,7 @@ void setup() {
   }
   Serial.print("MAC=");
   Serial.println(mac_addr_string.c_str());*/
-  
+
   pinMode(LEFT_LED, OUTPUT);
   pinMode(RIGHT_LED, OUTPUT);
   pinMode(RELAY1, OUTPUT);
@@ -179,7 +165,7 @@ void setup() {
   pinMode(DOOR1_DOWN, INPUT); // has external pulldown
   attachInterrupt(DOOR1_UP, door1_up, CHANGE);
   attachInterrupt(DOOR1_DOWN, door1_down, CHANGE);
-  
+
   sprintf(door_stat_str, "unknown");
   // check door status right away
   Log.trace("check door state @ startup");
@@ -188,7 +174,7 @@ void setup() {
   check_door1_state(DOOR1_UP);
   check_door1_state(DOOR1_DOWN);
   //sensor.setConversionTime(750);
-  
+
   // don't publish data until connected to cloud
   waitUntil(Particle.connected);
   Particle.variable("tempF", fahrenheit);
@@ -210,26 +196,26 @@ void setup() {
   Particle.function("saveEEPROM", cloud_write_eeprom_values);
   Particle.function("updateDeviceName", cloud_update_device_name);
   Particle.function("updateMqttBroker", cloud_update_mqtt_broker);
-  
+
   // eeprom check
   if (!eeprom_signature_ok())
   {
-	  // signature check failed, reset to default values
-	  // NOTE this should be adapted to confirm if failure is due to 
-	  //      no data or actual mismatch
-	  initialize_eeprom();
-	  Log.trace("eeprom signature mismatch, init eeprom to default values");
-	  
+      // signature check failed, reset to default values
+      // NOTE this should be adapted to confirm if failure is due to
+      //      no data or actual mismatch
+      initialize_eeprom();
+      Log.trace("eeprom signature mismatch, init eeprom to default values");
+
   }
   if (!eeprom_version_match())
   {
-	  // version mismatch
-	  // TODO migrate data between versions
+      // version mismatch
+      // TODO migrate data between versions
 
-	  Log.trace("eeprom version mismatch");
-	  initialize_eeprom();
+      Log.trace("eeprom version mismatch");
+      initialize_eeprom();
   }
-  
+
   read_eeprom_values();
   Log.trace("Read eeprom data sig=%x, ver=%x, name=%s, mqttEn=%i, rangingEn=%i, mqttSer=%s",
                 (const char*)savedData.signature,
@@ -263,7 +249,7 @@ unsigned long lastDistance = 0;
 void loop() {
     char buff[64];
     int len = 64;
-    
+
     //if (millis() > lastPass) {
     //  digitalWrite(RIGHT_LED, (state) ? HIGH : LOW);
     //  state = !state;
@@ -271,13 +257,13 @@ void loop() {
     //}
     // 1 sec delay between readings
     if ((millis() > lastDistance) && savedData.rangingEnabled) {
-        
+
         float leftDistance = LeftRangefinder.distInch();
         //float leftDistance = 0;
         String::format("%.2f", leftDistance).toCharArray(leftDistanceStr, 8);
         float rightDistance = RightRangefinder.distInch();
         String::format("%.2f", rightDistance).toCharArray(rightDistanceStr, 8);
-        
+
         if (savedData.mqttEnabled) {
             mqttclient.publish("garage/sensor/distance", String::format("{\"right\": %.2f, \"left\": %.2f}", rightDistance, leftDistance));
         }
@@ -292,7 +278,7 @@ void loop() {
             digitalWrite(LEFT_LED, LOW);
             leftParkingOccupied = false;
         }
-        
+
         if (rightDistance <= 67 && digitalRead(RIGHT_LED) == LOW)
         {
             digitalWrite(RIGHT_LED, HIGH);
@@ -303,22 +289,22 @@ void loop() {
             digitalWrite(RIGHT_LED, LOW);
             rightParkingOccupied = false;
         }
-        
+
         lastDistance = millis() + 1000UL;
     }
-    
-    
+
+
     // double check we are connected to the cloud + wifi
     // TODO do we need this anymore?
     if (!WiFi.ready()) {
-		Log.trace("reconnecting wifi in main program loop");
+    Log.trace("reconnecting wifi in main program loop");
         WiFi.connect();
     }
     if (!Particle.connected()) {
-		Log.trace("reconnecting to particle cloud in main program loop");
+    Log.trace("reconnecting to particle cloud in main program loop");
         Particle.connect();
     }
-    
+
     // make sure mqtt maintains connection if mqtt is enabled
     if (savedData.mqttEnabled) {
         if (mqttclient.isConnected())
@@ -337,7 +323,7 @@ void loop() {
                     WiFi.connect();
                 }
             }*/
-            
+
             // try to connect if it's been 5 seconds since our last
             // connection attempt
             if (WiFi.ready()) {
@@ -360,7 +346,7 @@ void loop() {
             }
         }
     }
-    
+
     //Particle.process(); // seems to prevent loss of connection
     // remove delay for 2.5 seconds and switch to checking current time compared to last loop
     if (millis()-last_temp_time >= msSAMPLE_INTERVAL) {
@@ -368,16 +354,16 @@ void loop() {
         // now reset last_run_time
         last_temp_time = millis();
     }
-	
-	if (millis()-last_door_state_time >= msDOOR_PUBLISH_INTERVAL) {
-		publishDoorState();
-		last_door_state_time = millis();
-	}
-	
-	if (millis()-last_metric_publish_time >= msMETRIC_PUBLISH) {
-		publishData();
-		last_metric_publish_time = millis();
-	}
+
+    if (millis()-last_door_state_time >= msDOOR_PUBLISH_INTERVAL) {
+        publishDoorState();
+        last_door_state_time = millis();
+    }
+
+    if (millis()-last_metric_publish_time >= msMETRIC_PUBLISH) {
+        publishData();
+        last_metric_publish_time = millis();
+    }
 }
 
 void getTemp() {
@@ -481,10 +467,15 @@ void door1_down() {
     int val = 0;
     val = digitalRead(DOOR1_DOWN);
     if (val == HIGH)
-        DOOR1_DOWN_STATE = true;
+    {
+        DOOR1_DOWN_STATE = true
+    }
     else
+    {
         DOOR1_DOWN_STATE = false;
+    }
     check_door1_state(DOOR1_DOWN);
+
     Serial.println("Door down function");
 }
 
@@ -529,7 +520,7 @@ void door_relay_off() {
 
 void publishDoorState() {
     // check door state
-	//Log.trace("publishDoorState function called from timer");
+    //Log.trace("publishDoorState function called from timer");
     if (PREVIOUS_DOOR1_STATE != DOOR1_STATE)
     {
         //String door_stat_str;
@@ -563,7 +554,7 @@ void publishDoorState() {
 }
 
 void publishData() {
-	//Log.trace("publishData function called from timer");
+    //Log.trace("publishData function called from timer");
     sprintf(szInfo, "%2.2f", fahrenheit);
     Particle.publish("dsTmp", szInfo, PRIVATE);
      // mqtt publish/subscribe
@@ -581,56 +572,56 @@ void publishData() {
 }
 
 int initialize_eeprom() {
-	// wipe eeprom contents and set to default values
-	eepromData data;
-	// default values below
-	data.signature = EEPROM_SIGNATURE;
-	data.version = EEPROM_VERSION;
-	strncpy(data.deviceName, "UNKNOWN", 8);
-	data.mqttEnabled = FALSE;
-	data.rangingEnabled = FALSE;
-	strncpy(data.mqttBroker, "127.0.0.1", 10); // added in 63, 02
-	EEPROM.put(EEPROM_ADDRESS, data);
-	return 1;
+    // wipe eeprom contents and set to default values
+    eepromData data;
+    // default values below
+    data.signature = EEPROM_SIGNATURE;
+    data.version = EEPROM_VERSION;
+    strncpy(data.deviceName, "UNKNOWN", 8);
+    data.mqttEnabled = FALSE;
+    data.rangingEnabled = FALSE;
+    strncpy(data.mqttBroker, "127.0.0.1", 10); // added in 63, 02
+    EEPROM.put(EEPROM_ADDRESS, data);
+    return 1;
 }
 
 int eeprom_version_match() {
-	// check to see if current eeprom version matches to saved values
-	eepromData data;
-	EEPROM.get(EEPROM_ADDRESS, data);
-	if (data.version == EEPROM_VERSION)
-	{
-		return 1;
-	}
-	else
-	{
-		return 0;
-	}
+    // check to see if current eeprom version matches to saved values
+    eepromData data;
+    EEPROM.get(EEPROM_ADDRESS, data);
+    if (data.version == EEPROM_VERSION)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 int eeprom_signature_ok() {
-	// validate the signature is ok in the eeprom data struct
-	eepromData data;
-	EEPROM.get(EEPROM_ADDRESS, data);
-	if (data.signature == EEPROM_SIGNATURE)
-	{
-		return 1;
-	}
-	else
-	{
-		return 0;
-	}
+    // validate the signature is ok in the eeprom data struct
+    eepromData data;
+    EEPROM.get(EEPROM_ADDRESS, data);
+    if (data.signature == EEPROM_SIGNATURE)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 void read_eeprom_values() {
-	// read data from eeprom into global
-	EEPROM.get(EEPROM_ADDRESS, savedData);
-	return;
+    // read data from eeprom into global
+    EEPROM.get(EEPROM_ADDRESS, savedData);
+    return;
 }
 
 void write_eeprom_values() {
-	// save data from global to eeprom
-	EEPROM.put(EEPROM_ADDRESS, savedData);
+    // save data from global to eeprom
+    EEPROM.put(EEPROM_ADDRESS, savedData);
 }
 
 int toggle_mqtt_support(String arg)
@@ -643,7 +634,7 @@ int toggle_mqtt_support(String arg)
     {
         savedData.mqttEnabled = 1;
     }
-    
+
     return 1;
 }
 
@@ -657,14 +648,14 @@ int toggle_ranging_support(String arg)
     {
         savedData.rangingEnabled = 1;
     }
-    
+
     return 1;
 }
 
 int cloud_write_eeprom_values(String arg)
 {
     write_eeprom_values();
-    
+
     return 1;
 }
 
@@ -678,10 +669,10 @@ int cloud_update_device_name(String arg)
         Log.trace("invalid argument to cloud update device name");
         return -1;
     }
-    
+
     // looks like we are ok, copy data over
     arg.toCharArray(savedData.deviceName, DEVICE_NAME_LENGTH);
-    
+
     return 1;
 }
 
@@ -693,12 +684,12 @@ int cloud_update_mqtt_broker(String arg)
         Log.trace("invalid argument to cloud update mqtt broker");
         return -1;
     }
-    
+
     // looks like we are ok, copy data over
     arg.toCharArray(savedData.mqttBroker, MQTT_BROKER_LENGTH);
-    
+
     // switch broker here
     mqttclient.setBroker(savedData.mqttBroker, 1883);
-    
+
     return 1;
 }
