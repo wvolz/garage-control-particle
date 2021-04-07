@@ -187,6 +187,7 @@ void setup() {
   Particle.variable("rDistance", rightDistanceStr);
   //Particle.variable("rDistance", String::format("=%.2f", rightDistance));
   Particle.function("door1move", toggle_door_relay);
+  Particle.function("door1crush_mode", door_crusher_mode);
   Particle.variable("mqttEnabled", savedData.mqttEnabled);
   Particle.variable("rangingEnabled", savedData.rangingEnabled);
   Particle.variable("deviceName", savedData.deviceName);
@@ -509,6 +510,18 @@ int toggle_door_relay(String command) {
     // TODO get rid of this delay and turn into some kind ofcallback after a timer expires?
     //delay(500);
     //digitalWrite(RELAY1, LOW);
+    return 1;
+}
+
+// setup timer for crusher mode relay, turn off after 15s, only run once
+Timer doorCrushModeRelayOffTimer(15000, door_relay_off, true);
+
+int door_crusher_mode(String command) {
+    // Force lower door
+    digitalWrite(RELAY1, HIGH);
+
+    doorCrushModeRelayOffTimer.start();
+
     return 1;
 }
 
